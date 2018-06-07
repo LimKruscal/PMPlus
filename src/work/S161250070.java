@@ -6,16 +6,37 @@ import bottom.Task;
 import main.Schedule;
 
 import java.io.IOException;
+import java.util.Random;
 
 /**
- *  demo：样例版答案
- *  贪心法进程调度策略
- *  采用位示图的方法存储资源占有情况
- *  使用连续存储存放任务pcb
- *  每轮执行资源可用的，没有执行完的任务
+ *
+ * 注意：请将此类名改为 S+你的学号   eg: S161250001
+ * 提交时只用提交此类和说明文档
+ *
+ * 在实现过程中不得声明新的存储空间（不得使用new关键字，反射和java集合类）
+ * 所有新声明的类变量必须为final类型
+ * 不得创建新的辅助类
+ *
+ * 可以生成局部变量
+ * 可以实现新的私有函数
+ *
+ * 可用接口说明:
+ *
+ * 获得当前的时间片
+ * int getTimeTick()
+ *
+ * 获得cpu数目
+ * int getCpuNumber()
+ *
+ * 对自由内存的读操作  offset 为索引偏移量， 返回位置为offset中存储的byte值
+ * byte readFreeMemory(int offset)
+ *
+ * 对自由内存的写操作  offset 为索引偏移量， 将x写入位置为offset的内存中
+ * void writeFreeMemory(int offset, byte x)
+ *
  */
+public class S161250070 extends Schedule{
 
-public class Sgreedy extends Schedule{
 
     // 最新任务ID其实存放地址
     private static final int latestTaskBeginner = 0;
@@ -33,7 +54,9 @@ public class Sgreedy extends Schedule{
     private static final int PCB_cpuTimeBeginner = 8;
     private static final int PCB_leftTimeBeginner = 12;
     private static final int PCB_rsLengthBeginner = 16;
-    private static final int PCB_resourceBeginner = 20;
+    private static final int PCB_ticketsBeginner = 20;
+    private static final int PCB_passBeginner = 24;
+    private static final int PCB_resourceBeginner = 28;
 
 
     @Override
@@ -47,12 +70,35 @@ public class Sgreedy extends Schedule{
         cleanAllResource();
         int cpuNumber = getCpuNumber()-1;
         int taskNumber = readInteger(latestTaskBeginner);
-        for(int i = 1 ; i <= taskNumber && cpuNumber >= 0; i++){
-            if(isTaskFinish(i)) continue;
-            if(useResource(i)){
-                cpuOperate[cpuNumber--] = i;
-                countDownLeft(i);
+        int tickets;
+        while (cpuNumber >= 0 && taskNumber >= 1) {
+            tickets = 1;
+            for (int i = 1; i <= taskNumber; i++) {
+                if (isTaskFinish(i)) continue;
+                if (isUseResource(i)) {
+                    tickets += getTaskTickets(i);
+                }
             }
+            if(tickets == 1)
+                break;
+            int task = 0;
+            int totalTickets = tickets;
+            int minPass = 10000000;
+            for (int i = 1; i <= taskNumber; i++) {
+                if (isTaskFinish(i)) continue;
+                if (isUseResource(i)) {
+                    int pass = getTaskPass(i);
+                    if (pass < minPass) {
+                        minPass = pass;
+                        task = i;
+                    }
+                }
+            }
+            //random 步长
+            writeInteger(getTaskBeginIndex(task) + PCB_passBeginner, minPass + (int)Math.round(Math.random() * (totalTickets/getTaskTickets(task)) + 1));
+            useResource(task);
+            cpuOperate[cpuNumber--] = task;
+            countDownLeft(task);
         }
     }
 
@@ -94,6 +140,8 @@ public class Sgreedy extends Schedule{
         writeInteger(newIndex+PCB_arrivedTimeBeginner, arrivedTime);
         writeInteger(newIndex+PCB_cpuTimeBeginner, task.cpuTime);
         writeInteger(newIndex+PCB_leftTimeBeginner, task.cpuTime);
+        writeInteger(newIndex+PCB_ticketsBeginner, task.cpuTime);
+        writeInteger(newIndex+PCB_passBeginner, 0);
         writeInteger(newIndex+PCB_rsLengthBeginner, task.resource.length);
         for(int i = 0 ; i < task.resource.length; i++) {
             writeFreeMemory(newIndex+PCB_resourceBeginner+i, (byte) task.resource[i]);
@@ -119,6 +167,21 @@ public class Sgreedy extends Schedule{
     private int getTaskBeginIndex(int taskID){
         return readInteger(pcbBitBeginner+taskID*4);
     }
+
+
+
+    private int getTaskPass(int taskID) {
+        return readInteger(getTaskBeginIndex(taskID)+PCB_passBeginner);
+
+    }
+
+
+    private int getTaskTickets(int taskID) {
+        return readInteger(getTaskBeginIndex(taskID) + PCB_ticketsBeginner);
+    }
+
+
+
 
     /**
      * 获得新到达任务 存放内存地址
@@ -156,7 +219,7 @@ public class Sgreedy extends Schedule{
      * @param taskID
      * @return
      */
-    private boolean useResource(int taskID){
+    private boolean isUseResource(int taskID){
         int index = getTaskBeginIndex(taskID);
         int length = readInteger(index+PCB_rsLengthBeginner);
 
@@ -165,12 +228,17 @@ public class Sgreedy extends Schedule{
             if(readFreeMemory(resourceBeginner+temp-1) != 0) return false;
         }
 
+        return true;
+    }
+
+    private void useResource(int taskID) {
+        int index = getTaskBeginIndex(taskID);
+        int length = readInteger(index+PCB_rsLengthBeginner);
+
         for(int i = 0 ; i < length ; i++){
             byte temp = readFreeMemory(index+PCB_resourceBeginner+i);
             writeFreeMemory(resourceBeginner+temp-1, (byte) 1);
         }
-
-        return true;
     }
 
     /**
@@ -185,7 +253,7 @@ public class Sgreedy extends Schedule{
         writeInteger(index+PCB_leftTimeBeginner, leftTime);
     }
 
-    /**
+    /**c
      * 判断任务是否执行完毕
      * @param taskID
      * @return
@@ -206,26 +274,38 @@ public class Sgreedy extends Schedule{
     }
 
 
+
     /**
      * 执行主函数 用于debug
+     * 里面的内容可随意修改
+     * 你可以在这里进行对自己的策略进行测试，如果不喜欢这种测试方式，可以直接删除main函数
      * @param args
      * @throws IOException
      */
     public static void main(String[] args) throws IOException {
+        // 定义cpu的数量
         int cpuNumber = 2;
-        BottomMonitor bottomMonitor = new BottomMonitor("src/testFile/textSample.txt",cpuNumber);
+        // 定义测试文件
+        String filename = "src/testFile/textSample.txt";
+
+        BottomMonitor bottomMonitor = new BottomMonitor(filename,cpuNumber);
         BottomService bottomService = new BottomService(bottomMonitor);
-        Schedule schedule =  new Sgreedy();
+        Schedule schedule =  new S161250070();
         schedule.setBottomService(bottomService);
 
-        for(int i = 0 ; i < 1000 ; i++){
+        //外部调用实现类
+        for(int i = 0 ; i < 500 ; i++){
             Task[] tasks = bottomMonitor.getTaskArrived();
             int[] cpuOperate = new int[cpuNumber];
+
+            // 结果返回给cpuOperate
             schedule.ProcessSchedule(tasks,cpuOperate);
+
             try {
                 bottomService.runCpu(cpuOperate);
             } catch (Exception e) {
                 System.out.println("Fail: "+e.getMessage());
+                e.printStackTrace();
                 return;
             }
             bottomMonitor.increment();
@@ -241,12 +321,11 @@ public class Sgreedy extends Schedule{
 
         //打印cpu日志
         bottomMonitor.printCpuLog();
-        if(bottomMonitor.isAllTaskFinish()){
-//            System.out.println("Success ");
-        }else{
+
+
+        if(!bottomMonitor.isAllTaskFinish()){
             System.out.println(" Fail: At least one task has not been completed! ");
         }
-
-
     }
+
 }
