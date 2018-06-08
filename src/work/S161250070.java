@@ -73,6 +73,8 @@ public class S161250070 extends Schedule{
             int highest = 0;
             double weight = 0;
             double temp = 0;
+            int resoureLength = 0;
+            int tempLen = 0;
             for (int i = 1; i <= taskNumber; i++) {
                 if (isTaskFinish(i)) continue;
                 if(!isUseResource(i)) continue;
@@ -80,7 +82,11 @@ public class S161250070 extends Schedule{
                     if((weight != temp)) {
                         highest = i;
                         weight = temp;
-                    }else if(Math.random()*2>1){
+                    }else if((tempLen=getTaskResourceLength(i)) <= resoureLength){
+                        highest = i;
+                        weight = temp;
+                        resoureLength = tempLen;
+                    }else if(Math.random() * 2 > 1){
                         highest = i;
                         weight = temp;
                     }
@@ -295,7 +301,7 @@ public class S161250070 extends Schedule{
         // 定义cpu的数量
         int cpuNumber = 2;
         // 定义测试文件
-        String filename = "src/testFile/rand_5.csv";
+        String filename = "src/testFile/rand_8.csv";
 
         BottomMonitor bottomMonitor = new BottomMonitor(filename,cpuNumber);
         BottomService bottomService = new BottomService(bottomMonitor);
