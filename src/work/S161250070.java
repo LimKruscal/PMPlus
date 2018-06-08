@@ -6,7 +6,6 @@ import bottom.Task;
 import main.Schedule;
 
 import java.io.IOException;
-import java.util.Random;
 
 /**
  *
@@ -54,9 +53,8 @@ public class S161250070 extends Schedule{
     private static final int PCB_cpuTimeBeginner = 8;
     private static final int PCB_leftTimeBeginner = 12;
     private static final int PCB_rsLengthBeginner = 16;
-    private static final int PCB_ticketsBeginner = 20;
-    private static final int PCB_passBeginner = 24;
-    private static final int PCB_resourceBeginner = 28;
+    private static final int PCB_idleTimeBeginner = 20;
+    private static final int PCB_resourceBeginner = 24;
 
 
     @Override
@@ -70,35 +68,42 @@ public class S161250070 extends Schedule{
         cleanAllResource();
         int cpuNumber = getCpuNumber()-1;
         int taskNumber = readInteger(latestTaskBeginner);
-        int tickets;
-        while (cpuNumber >= 0 && taskNumber >= 1) {
-            tickets = 1;
+
+        while(cpuNumber >= 0 && taskNumber > 0) {
+            int highest = 0;
+            double weight = 0;
+            double temp = 0;
             for (int i = 1; i <= taskNumber; i++) {
                 if (isTaskFinish(i)) continue;
-                if (isUseResource(i)) {
-                    tickets += getTaskTickets(i);
-                }
-            }
-            if(tickets == 1)
-                break;
-            int task = 0;
-            int totalTickets = tickets;
-            int minPass = 10000000;
-            for (int i = 1; i <= taskNumber; i++) {
-                if (isTaskFinish(i)) continue;
-                if (isUseResource(i)) {
-                    int pass = getTaskPass(i);
-                    if (pass < minPass) {
-                        minPass = pass;
-                        task = i;
+                if(!isUseResource(i)) continue;
+                if((temp=(1.0*(getCpuTime(i) + getIdleTime(i))/getCpuTime(i))) >= weight){
+                    if((weight != temp)) {
+                        highest = i;
+                        weight = temp;
+                    }else if(Math.random()*2>1){
+                        highest = i;
+                        weight = temp;
                     }
                 }
             }
-            //random 步长
-            writeInteger(getTaskBeginIndex(task) + PCB_passBeginner, minPass + (int)Math.round(((totalTickets)/getTaskTickets(task) + 1) * Math.random()));
-            useResource(task);
-            cpuOperate[cpuNumber--] = task;
-            countDownLeft(task);
+            if(highest == 0)
+                break;
+
+            useResource(highest);
+            cpuOperate[cpuNumber--] = highest;
+            countDownLeft(highest);
+        }
+        for (int i = 1; i <= taskNumber; i++) {
+            if (isTaskFinish(i)) continue;
+            boolean flag = false;
+            for(int j=0; j<=getCpuNumber()-1;j++){
+                if(cpuOperate[j]==i){
+                    flag = true;
+                }
+            }
+            if(!flag){
+                plusIdleTime(i);
+            }
         }
     }
 
@@ -116,6 +121,8 @@ public class S161250070 extends Schedule{
         ans += (readFreeMemory(beginIndex+3)&0xff);
         return ans;
     }
+
+
 
     /**
      * 向自由内存中写一个int型整数
@@ -140,14 +147,24 @@ public class S161250070 extends Schedule{
         writeInteger(newIndex+PCB_arrivedTimeBeginner, arrivedTime);
         writeInteger(newIndex+PCB_cpuTimeBeginner, task.cpuTime);
         writeInteger(newIndex+PCB_leftTimeBeginner, task.cpuTime);
-        writeInteger(newIndex+PCB_ticketsBeginner, task.cpuTime);
-        writeInteger(newIndex+PCB_passBeginner, 0);
+        writeInteger(newIndex + PCB_idleTimeBeginner, 0);
         writeInteger(newIndex+PCB_rsLengthBeginner, task.resource.length);
         for(int i = 0 ; i < task.resource.length; i++) {
             writeFreeMemory(newIndex+PCB_resourceBeginner+i, (byte) task.resource[i]);
         }
         writeInteger(latestTaskBeginner, task.tid);
         writeInteger(pcbBitBeginner+task.tid*4, newIndex);
+    }
+
+
+
+    private void plusIdleTime(int taskID) {
+        int time = readInteger(getTaskBeginIndex(taskID)+PCB_idleTimeBeginner);
+        writeInteger(getTaskBeginIndex(taskID)+PCB_idleTimeBeginner, time + 1);
+    }
+
+    private int getCpuTime(int taskID) {
+       return readInteger(getTaskBeginIndex(taskID)+PCB_cpuTimeBeginner);
     }
 
 
@@ -169,18 +186,9 @@ public class S161250070 extends Schedule{
         return readInteger(pcbBitBeginner+taskID*4);
     }
 
-
-
-    private int getTaskPass(int taskID) {
-        return readInteger(getTaskBeginIndex(taskID)+PCB_passBeginner);
-
+    private int getIdleTime(int taskID){
+        return readInteger(getTaskBeginIndex(taskID)+ PCB_idleTimeBeginner);
     }
-
-
-    private int getTaskTickets(int taskID) {
-        return readInteger(getTaskBeginIndex(taskID) + PCB_ticketsBeginner);
-    }
-
 
 
 
@@ -287,7 +295,7 @@ public class S161250070 extends Schedule{
         // 定义cpu的数量
         int cpuNumber = 2;
         // 定义测试文件
-        String filename = "src/testFile/textSample.txt";
+        String filename = "src/testFile/rand_5.csv";
 
         BottomMonitor bottomMonitor = new BottomMonitor(filename,cpuNumber);
         BottomService bottomService = new BottomService(bottomMonitor);
@@ -295,7 +303,7 @@ public class S161250070 extends Schedule{
         schedule.setBottomService(bottomService);
 
         //外部调用实现类
-        for(int i = 0 ; i < 500 ; i++){
+        for(int i = 0 ; i < 800 ; i++){
             Task[] tasks = bottomMonitor.getTaskArrived();
             int[] cpuOperate = new int[cpuNumber];
 
