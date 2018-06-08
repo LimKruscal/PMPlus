@@ -95,7 +95,7 @@ public class S161250070 extends Schedule{
                 }
             }
             //random 步长
-            writeInteger(getTaskBeginIndex(task) + PCB_passBeginner, minPass + (int)Math.round(Math.random() * (totalTickets/getTaskTickets(task)) + 1));
+            writeInteger(getTaskBeginIndex(task) + PCB_passBeginner, minPass + (int)Math.round(((getExecTime(task) + totalTickets)/getTaskTickets(task) + 1) * Math.random()));
             useResource(task);
             cpuOperate[cpuNumber--] = task;
             countDownLeft(task);
@@ -149,6 +149,13 @@ public class S161250070 extends Schedule{
         writeInteger(latestTaskBeginner, task.tid);
         writeInteger(pcbBitBeginner+task.tid*4, newIndex);
     }
+
+
+    private int getExecTime(int taskID) {
+        int exec = readInteger(getTaskBeginIndex(taskID)+PCB_cpuTimeBeginner) - readInteger(getTaskBeginIndex(taskID)+PCB_leftTimeBeginner);
+        return exec;
+    }
+
 
     /**
      * 获得这个任务需要的资源长度
